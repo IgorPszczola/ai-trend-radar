@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 import httpx 
+from database import collection
+from datetime import datetime, timedelta, timezone
 
 app = FastAPI()
 
@@ -19,11 +21,21 @@ async def fetch_reddit_trends():
             trends.append({
                 "title": post["data"]["title"],
                 "url": "https://reddit.com" + post["data"]["permalink"],
-                "score": post["data"]["score"]
+                "score": post["data"]["score"],
+                "fetched_at": datetime.now(timezone.utc)
             })
         else:
             continue
     
+    granica = datetime.now(timezone.utc) - timedelta(days=2)
+
+    await collection.delete_many({"fetched_at": {"$lt": granica}})
+
+    await collection.insert_many(trends)
+
+    for post in trends:
+        post["_id"] = str(post["_id"])
+
     return { 
         "source": "r/streetwear",
         "trends": trends
