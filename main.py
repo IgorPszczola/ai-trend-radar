@@ -1,42 +1,78 @@
-from fastapi import FastAPI
-import httpx 
+import os
+from fastapi import FastAPI, HTTPException
+import httpx
 from database import collection
 from datetime import datetime, timedelta, timezone
 
+
 app = FastAPI()
 
+RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 
-@app.get("/api/trends/reddit")
-async def fetch_reddit_trends():
-    url = "https://www.reddit.com/r/streetwear/top.json?limit=30&t=week"
-    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+@app.get("/api/trends/instagram")
+async def fetch_instagram_trends(username: str = "fit_aitana"):
+    url = "https://instagram-scraper-20251.p.rapidapi.com/userposts/" 
     
+    querystring = {"username": username}
+
+    headers = {
+        "x-rapidapi-key": RAPIDAPI_KEY,
+        "x-rapidapi-host": "instagram-scraper-20251.p.rapidapi.com"
+    }
+
     async with httpx.AsyncClient() as client:
-        response = await client.get(url, headers=headers)
-        data = response.json()
-    
-    trends = []
-    for post in data["data"]["children"]:
-        if len(post["data"]["title"]) > 3:
-            trends.append({
-                "title": post["data"]["title"],
-                "url": "https://reddit.com" + post["data"]["permalink"],
-                "score": post["data"]["score"],
-                "fetched_at": datetime.now(timezone.utc)
-            })
-        else:
-            continue
-    
-    granica = datetime.now(timezone.utc) - timedelta(days=2)
+        try:
+            response = await client.get(url, headers=headers, params=querystring, timeout=20.0)
+            response.raise_for_status()
+            data = response.json()
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"Błąd połączenia z RapidAPI: {str(exc)}")
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Nieoczekiwany błąd: {str(e)}")
 
+    items = data.get("data", {}).get("items", [])
+    if not items:
+        raise HTTPException(status_code=404, detail="Brak postów lub złe dane z API.")
+
+    trends = []
+    
+    for item in items:
+        caption_dict = item.get("caption") or {}
+        text = caption_dict.get("text", "")
+        
+        if not text:
+            continue
+
+        hashtags = caption_dict.get("hashtags", [])
+        
+        location_dict = item.get("location") or {}
+        location_name = location_dict.get("name", "")
+        
+        code = item.get("code", "")
+        post_url = f"https://www.instagram.com/p/{code}/" if code else ""
+        
+        taken_at = item.get("taken_at")
+        published_date = datetime.fromtimestamp(taken_at, timezone.utc) if taken_at else None
+
+        trends.append({
+            "text": text,
+            "hashtags": hashtags,
+            "location": location_name,
+            "url": post_url,
+            "published_at": published_date,
+            "fetched_at": datetime.now(timezone.utc)
+        })
+
+    granica = datetime.now(timezone.utc) - timedelta(hours=48)
     await collection.delete_many({"fetched_at": {"$lt": granica}})
 
-    await collection.insert_many(trends)
-
-    for post in trends:
-        post["_id"] = str(post["_id"])
+    if trends:
+        await collection.insert_many(trends)
+        for post in trends:
+            post["_id"] = str(post["_id"])
 
     return { 
-        "source": "r/streetwear",
+        "source": f"instagram/{username}",
+        "count": len(trends),
         "trends": trends
     }
