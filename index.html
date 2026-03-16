@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Prompt Radar</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border-top-color: #ec4899;
+            -webkit-animation: spinner 1.5s linear infinite;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex items-center justify-center font-sans">
+
+    <div class="bg-white p-10 rounded-3xl shadow-xl max-w-lg w-full text-center border-t-4 border-pink-500">
+        <h1 class="text-4xl font-extrabold text-gray-800 mb-2">Prompt<span class="text-pink-500">Radar</span></h1>
+        <p class="text-gray-500 mb-8">Zdobądź profesjonalne prompty AI na podstawie trendów z Instagrama.</p>
+
+        <div class="mb-6 text-left">
+            <label class="block text-gray-700 text-sm font-bold mb-2" for="ig-username">
+                Nazwa profilu (bez @)
+            </label>
+            <input id="ig-username" type="text" placeholder="np. fit_aitana" class="shadow appearance-none border rounded-xl w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all">
+        </div>
+
+        <button id="generate-btn" class="w-full bg-gradient-to-r from-pink-500 to-purple-600 hover:from-pink-600 hover:to-purple-700 text-white font-bold py-3 px-4 rounded-xl shadow-lg transform transition-all hover:scale-105">
+            Generuj Prompty (TXT)
+        </button>
+
+        <div id="loading" class="hidden mt-6 flex flex-col items-center">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-gray-200 h-12 w-12 mb-4"></div>
+            <p class="text-gray-500 text-sm animate-pulse">Groq LLM analizuje posty... To może potrwać kilka sekund.</p>
+        </div>
+
+        <div id="success" class="hidden mt-6 p-4 bg-green-50 text-green-700 rounded-xl border border-green-200">
+            <p class="font-bold">Sukces! 🎉</p>
+            <p class="text-sm">Plik .txt został wygenerowany i pobrany.</p>
+        </div>
+        
+        <div id="error" class="hidden mt-6 p-4 bg-red-50 text-red-700 rounded-xl border border-red-200">
+            <p class="font-bold">Błąd!</p>
+            <p id="error-msg" class="text-sm"></p>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('generate-btn').addEventListener('click', async () => {
+            const username = document.getElementById('ig-username').value || 'fit_aitana';
+            const loading = document.getElementById('loading');
+            const success = document.getElementById('success');
+            const error = document.getElementById('error');
+            const errorMsg = document.getElementById('error-msg');
+            const btn = document.getElementById('generate-btn');
+
+            success.classList.add('hidden');
+            error.classList.add('hidden');
+            loading.classList.remove('hidden');
+            btn.disabled = true;
+            btn.classList.add('opacity-50');
+
+            try {
+                const response = await fetch(`/api/trends/instagram?username=${username}`);
+                if (!response.ok) {
+                    throw new Error(`Serwer zwrócił błąd: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                if (data.UWAGA) {
+                    throw new Error("Konto nie istnieje lub Instagram odrzucił zapytanie.");
+                }
+
+                let fileContent = `=== PROMPTY WYGENEROWANE DLA: @${username} ===\n\n`;
+                data.trends.forEach((trend, index) => {
+                    fileContent += `--- POST #${index + 1} ---\n`;
+                    fileContent += `LOKACJA: ${trend.location || 'Nie podano'}\n`;
+                    fileContent += `PROMPT:\n${trend.ai_prompt}\n\n`;
+                });
+
+                const blob = new Blob([fileContent], { type: 'text/plain' });
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = `prompty_${username}_${new Date().toISOString().slice(0,10)}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(downloadUrl);
+                document.body.removeChild(a);
+
+                loading.classList.add('hidden');
+                success.classList.remove('hidden');
+            } catch (err) {
+                loading.classList.add('hidden');
+                errorMsg.innerText = err.message;
+                error.classList.remove('hidden');
+            } finally {
+                btn.disabled = false;
+                btn.classList.remove('opacity-50');
+            }
+        });
+    </script>
+</body>
+</html>
