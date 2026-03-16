@@ -3,6 +3,9 @@ from fastapi import FastAPI, HTTPException
 import httpx
 from database import collection
 from datetime import datetime, timedelta, timezone
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 app = FastAPI()
@@ -13,7 +16,7 @@ RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY")
 async def fetch_instagram_trends(username: str = "fit_aitana"):
     url = "https://instagram-scraper-20251.p.rapidapi.com/userposts/" 
     
-    querystring = {"username": username}
+    querystring = {"username_or_id": username}
 
     headers = {
         "x-rapidapi-key": RAPIDAPI_KEY,
@@ -32,7 +35,10 @@ async def fetch_instagram_trends(username: str = "fit_aitana"):
 
     items = data.get("data", {}).get("items", [])
     if not items:
-        raise HTTPException(status_code=404, detail="Brak postów lub złe dane z API.")
+        return {
+            "UWAGA": "RapidAPI zwróciło coś innego niż posty. Oto surowe dane:",
+            "DEBUG_RAW_DATA": data
+        }
 
     trends = []
     
