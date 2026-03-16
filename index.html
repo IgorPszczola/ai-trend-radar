@@ -98,7 +98,11 @@
                 success.classList.remove('hidden');
             } catch (err) {
                 loading.classList.add('hidden');
-                errorMsg.innerText = err.message;
+                if (err.message.includes("NetworkError") || err.message.includes("Failed to fetch")) {
+                    errorMsg.innerText = "Błąd sieci lub timeout. Upewnij się, że wpisane konto jest publiczne i istnieje!";
+                } else {
+                    errorMsg.innerText = err.message;
+                }
                 error.classList.remove('hidden');
             } finally {
                 btn.disabled = false;

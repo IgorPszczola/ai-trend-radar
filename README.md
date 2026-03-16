@@ -63,6 +63,8 @@ Pipeline:
 - main.py: FastAPI app, RapidAPI fetch, Groq prompt generation, endpoint logic, frontend serving.
 - database.py: MongoDB client and collection setup.
 - index.html: UI for profile input, loading states, error handling, and TXT export.
+- tests/test_main.py: unit tests for API behavior with mocked RapidAPI, MongoDB, and prompt generation.
+- pytest.ini: pytest configuration for async tests.
 
 ## Environment Variables
 
@@ -91,6 +93,26 @@ uvicorn main:app --reload
 
 4. Open in browser:
 - http://127.0.0.1:8000
+
+## Testing
+
+Install development dependencies:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+Run the test suite:
+
+```bash
+python -m pytest -q
+```
+
+Current test coverage includes:
+- Successful extraction and transformation flow
+- Handling of unexpected upstream response schema
+- Mapping upstream HTTP failures to API 502 response
+- Root endpoint HTML response check
 
 ## API Endpoint
 
